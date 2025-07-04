@@ -37,3 +37,18 @@ so that for each model we'll be sure about what image and what data have been
 used to train the model.
 The output will be a system (I don't know in what form, yet) that verifies this
 connection between input and output. Possibly a web3 application that does so.
+
+
+## Usage
+
+You need to build and serve the image, assuming this is from a public VPS:
+
+```bash
+# Build the image
+build
+
+# ./result contains the nixos.qcow2 file, serve it
+caddy file-server -a -r ./result -l :8080
+```
+
+Then use fluence API or control panel to start a VM using the custom image.
