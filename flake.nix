@@ -186,7 +186,7 @@
           ];
         };
       }) // {
-        nixosConfigurations.vm-preview = nixpkgs.lib.nixosSystem {
+        nixosConfigurations.vm-image = nixpkgs.lib.nixosSystem {
           system = "x86_64-linux";
           modules = [
             # Base configuration
@@ -271,7 +271,7 @@
                   set -euo pipefail
 
                   echo "Uploading trained model to Walrus..."
-                  
+
                   # Capture the JSON output from walrus upload
                   upload_result=$(${
                     lib.getExe self.packages.x86_64-linux.do-walrus-put
@@ -279,7 +279,7 @@
 
                   echo "Model uploaded successfully"
                   echo "Upload result: $upload_result"
-                  
+
                   # Use the JSON output as the notification message
                   ${
                     lib.getExe self.packages.x86_64-linux.do-notify
@@ -298,7 +298,7 @@
           vm-preview = {
             type = "app";
             program =
-              "${self.nixosConfigurations.vm-preview.config.system.build.vm}/bin/run-nixos-vm";
+              "${self.nixosConfigurations.vm-image.config.system.build.vm}/bin/run-nixos-vm";
           };
         };
       };
