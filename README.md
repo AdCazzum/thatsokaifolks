@@ -71,7 +71,7 @@ In this repo, there are some more things that are useful for testing and demoing
    to run it, register a bot using Botfather, get a key and run it using
    something like:
    ```bash
-   WEBHOOK_PORT=8888 TELEGRAM_BOT_TOKEN=... python3 telegram_notifier_bot.py
+   WEBHOOK_PORT=8888 TELEGRAM_BOT_TOKEN=... python3 src/telegram_notifier_bot.py
    ```
 2. a `Caddyfile` that is used to work as reverse-proxy for the telegram bot and
    to serve the files in `./result`:
