@@ -263,6 +263,10 @@ async def webhook_handler(request):
         if not message:
             return web.Response(status=400, text="No message provided")
 
+        # Log the raw message for debugging
+        logger.info(f"Received message for topic '{topic_name}': {repr(message)}")
+        logger.info(f"Message length: {len(message)}, type: {type(message)}")
+
         # Get topic info
         chat_id = topic_info['chat_id']
 
@@ -275,11 +279,14 @@ async def webhook_handler(request):
         try:
             # Try to parse as JSON to validate and pretty-print
             import json
+            logger.info(f"Attempting to parse as JSON: {message[:100]}...")
             parsed_json = json.loads(message)
             # Format as code block for better readability
             formatted_message = f"```json\n{json.dumps(parsed_json, indent=2)}\n```"
-        except (json.JSONDecodeError, TypeError):
+            logger.info("Successfully parsed and formatted as JSON")
+        except (json.JSONDecodeError, TypeError) as e:
             # Not JSON or invalid JSON, escape potential markdown characters
+            logger.info(f"JSON parsing failed: {e}. Treating as regular text.")
             formatted_message = message.replace('_', '\\_').replace('*', '\\*').replace('[', '\\[').replace(']', '\\]').replace('`', '\\`')
         
         notification_text = f"🔔 **{topic_name}**\n\n{formatted_message}"
