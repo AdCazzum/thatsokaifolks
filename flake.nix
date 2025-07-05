@@ -10,36 +10,101 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    # sui-overlay = { url = "github:akiross/sui-overlay"; };
+
+    naersk.url = "github:nix-community/naersk";
+
+    sticazzi = {
+      url =
+        "https://github.com/MystenLabs/sui/releases/download/testnet-v1.51.2/sui-testnet-v1.51.2-ubuntu-x86_64.tgz";
+      flake = false;
+    };
+
   };
 
-  outputs = { self, nixpkgs, flake-utils, nixos-generators }:
+  outputs = { self, nixpkgs, flake-utils, nixos-generators, sticazzi, naersk }:
     flake-utils.lib.eachDefaultSystem (system:
-      let pkgs = nixpkgs.legacyPackages.${system};
+      let
+        # overlays = [ sui-overlay.overlays.${system}.default ];
+        # pkgs = import nixpkgs { inherit system overlays; };
+        pkgs = nixpkgs.legacyPackages.${system};
+        version = "1.51.2";
+        naersk' = pkgs.callPackage naersk { };
       in {
+
+        packages.sui-testnet = pkgs.stdenv.mkDerivation {
+          name = "sui-testnet";
+          inherit version;
+
+          src = sticazzi;
+
+          LD_LIBRARY_PATH = "${pkgs.stdenv.cc.cc.lib}/lib";
+
+          #  pkgs.fetchzip {
+          #    # stripRoot = false;
+          #    curlOpts = "-L";
+          #    url =
+          #      "https://github.com/MystenLabs/sui/releases/download/testnet-v${version}/sui-testnet-v${version}-ubuntu-x86_64.tgz";
+
+          #    sha256 = "";
+          #  };
+
+          installPhase = ''
+            mkdir -p $out/bin
+            for b in *; do
+              if [ -f "$b" ] && [ -x "$b" ]; then
+                cp "$b" $out/bin/
+                chmod +x $out/bin/"$b"
+              fi
+            done
+          '';
+        };
+
+        # packages.walrus = pkgs.callPackage ./walrus.nix { };
+        packages.walrus = naersk'.buildPackage {
+          src = pkgs.fetchFromGitHub {
+            owner = "MystenLabs";
+            repo = "walrus";
+            rev = "testnet-v${version}";
+            hash = "sha256-9bM1Dypl/z7vOi76HsaIXIBOQ7D3B+20JbDwKh3aILY=";
+          };
+        };
+
         devShells.default = pkgs.mkShell {
-          buildInputs = with pkgs; [ nix git pkgs.nixos-generators ];
+          buildInputs = with pkgs; [
+            nix
+            git
+            pkgs.nixos-generators
+            # to install sui
+            pkgs.cargo
+
+            self.packages.${system}.sui-testnet
+          ];
         };
       }) // {
 
-        packages.x86_64-linux.default = nixos-generators.nixosGenerate {
-          system = "x86_64-linux";
-          modules = [
-            # you can include your own nixos configuration here, i.e.
-            ./configuration.nix
-          ];
-          format = "qcow";
+        #packages.x86_64-linux.sui-testnet =
+        # nixpkgs.legacyPackages.x86_64-linux.callPackage ./sui-testnet.nix { };
 
-          # optional arguments:
-          # explicit nixpkgs and lib:
-          # pkgs = nixpkgs.legacyPackages.x86_64-linux;
-          # lib = nixpkgs.legacyPackages.x86_64-linux.lib;
-          # additional arguments to pass to modules:
-          # specialArgs = { myExtraArg = "foobar"; };
+        # packages.x86_64-linux.default = nixos-generators.nixosGenerate {
+        #   system = "x86_64-linux";
+        #   modules = [
+        #     # you can include your own nixos configuration here, i.e.
+        #     ./configuration.nix
+        #   ];
+        #   format = "qcow";
 
-          # you can also define your own custom formats
-          # customFormats = { "myFormat" = <myFormatModule>; ... };
-          # format = "myFormat";
-        };
+        #   # optional arguments:
+        #   # explicit nixpkgs and lib:
+        #   # pkgs = nixpkgs.legacyPackages.x86_64-linux;
+        #   # lib = nixpkgs.legacyPackages.x86_64-linux.lib;
+        #   # additional arguments to pass to modules:
+        #   # specialArgs = { myExtraArg = "foobar"; };
+
+        #   # you can also define your own custom formats
+        #   # customFormats = { "myFormat" = <myFormatModule>; ... };
+        #   # format = "myFormat";
+        # };
 
         nixosConfigurations.vm-preview = nixpkgs.lib.nixosSystem {
           system = "x86_64-linux";
