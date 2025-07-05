@@ -285,11 +285,17 @@ async def webhook_handler(request):
             formatted_message = f"```json\n{json.dumps(parsed_json, indent=2)}\n```"
             logger.info("Successfully parsed and formatted as JSON")
         except (json.JSONDecodeError, TypeError) as e:
-            # Not JSON or invalid JSON, escape potential markdown characters
+            # Not JSON or invalid JSON, escape potential markdown characters and remove control characters
             logger.info(f"JSON parsing failed: {e}. Treating as regular text.")
-            formatted_message = message.replace('_', '\\_').replace('*', '\\*').replace('[', '\\[').replace(']', '\\]').replace('`', '\\`')
+            # Remove control characters that cause JSON encoding issues
+            clean_message = ''.join(char for char in message if ord(char) >= 32 or char in '\n\r\t')
+            formatted_message = clean_message.replace('_', '\\_').replace('*', '\\*').replace('[', '\\[').replace(']', '\\]').replace('`', '\\`')
         
         notification_text = f"🔔 **{topic_name}**\n\n{formatted_message}"
+        
+        # Log the final message being sent to Telegram
+        logger.info(f"Sending to Telegram: {repr(notification_text)}")
+        logger.info(f"Final message length: {len(notification_text)}")
         
         async with aiohttp.ClientSession() as session:
             payload = {
@@ -297,6 +303,7 @@ async def webhook_handler(request):
                 'text': notification_text,
                 'parse_mode': 'Markdown'
             }
+            logger.info(f"Telegram payload: {repr(payload)}")
             async with session.post(telegram_url, json=payload) as resp:
                 if resp.status == 200:
                     return web.Response(status=200, text="Notification sent")
