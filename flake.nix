@@ -139,6 +139,8 @@
             pkgs.git
             pkgs.nixos-generators
 
+            (pkgs.python3.withPackages (ps: with ps; [ scikit-learn polars ]))
+
             self.packages.${system}.sui-testnet
             self.packages.${system}.walrus
             self.packages.${system}.do-walrus-put
