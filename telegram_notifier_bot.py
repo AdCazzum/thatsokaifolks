@@ -39,9 +39,8 @@ class TopicDatabase:
             cursor = conn.cursor()
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS topics (
-                    uuid TEXT PRIMARY KEY,
+                    topic_name TEXT PRIMARY KEY,
                     user_id INTEGER NOT NULL,
-                    topic_name TEXT NOT NULL,
                     chat_id INTEGER NOT NULL,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
@@ -57,39 +56,38 @@ class TopicDatabase:
         finally:
             conn.close()
     
-    def add_topic(self, topic_uuid: str, user_id: int, topic_name: str, chat_id: int) -> bool:
+    def add_topic(self, topic_name: str, user_id: int, chat_id: int) -> bool:
         """Add a new topic to the database"""
         conn = sqlite3.connect(self.db_path)
         try:
             cursor = conn.cursor()
             cursor.execute('''
-                INSERT INTO topics (uuid, user_id, topic_name, chat_id)
-                VALUES (?, ?, ?, ?)
-            ''', (topic_uuid, user_id, topic_name, chat_id))
+                INSERT INTO topics (topic_name, user_id, chat_id)
+                VALUES (?, ?, ?)
+            ''', (topic_name, user_id, chat_id))
             conn.commit()
             return True
         except sqlite3.IntegrityError:
-            return False  # UUID already exists
+            return False  # Topic name already exists globally
         finally:
             conn.close()
     
-    def get_topic(self, topic_uuid: str) -> Optional[Dict]:
-        """Get a topic by UUID"""
+    def get_topic(self, topic_name: str) -> Optional[Dict]:
+        """Get a topic by name"""
         conn = sqlite3.connect(self.db_path)
         try:
             cursor = conn.cursor()
             cursor.execute('''
-                SELECT uuid, user_id, topic_name, chat_id, created_at
-                FROM topics WHERE uuid = ?
-            ''', (topic_uuid,))
+                SELECT topic_name, user_id, chat_id, created_at
+                FROM topics WHERE topic_name = ?
+            ''', (topic_name,))
             row = cursor.fetchone()
             if row:
                 return {
-                    "uuid": row[0],
+                    "topic_name": row[0],
                     "user_id": row[1],
-                    "topic_name": row[2],
-                    "chat_id": row[3],
-                    "created_at": row[4]
+                    "chat_id": row[2],
+                    "created_at": row[3]
                 }
             return None
         finally:
@@ -101,18 +99,17 @@ class TopicDatabase:
         try:
             cursor = conn.cursor()
             cursor.execute('''
-                SELECT uuid, user_id, topic_name, chat_id, created_at
+                SELECT topic_name, user_id, chat_id, created_at
                 FROM topics WHERE user_id = ?
                 ORDER BY created_at DESC
             ''', (user_id,))
             rows = cursor.fetchall()
             return [
                 {
-                    "uuid": row[0],
+                    "topic_name": row[0],
                     "user_id": row[1],
-                    "topic_name": row[2],
-                    "chat_id": row[3],
-                    "created_at": row[4]
+                    "chat_id": row[2],
+                    "created_at": row[3]
                 }
                 for row in rows
             ]
@@ -125,17 +122,16 @@ class TopicDatabase:
         try:
             cursor = conn.cursor()
             cursor.execute('''
-                SELECT uuid, user_id, topic_name, chat_id, created_at
+                SELECT topic_name, user_id, chat_id, created_at
                 FROM topics WHERE user_id = ? AND topic_name = ?
             ''', (user_id, topic_name))
             row = cursor.fetchone()
             if row:
                 return {
-                    "uuid": row[0],
+                    "topic_name": row[0],
                     "user_id": row[1],
-                    "topic_name": row[2],
-                    "chat_id": row[3],
-                    "created_at": row[4]
+                    "chat_id": row[2],
+                    "created_at": row[3]
                 }
             return None
         finally:
@@ -199,24 +195,21 @@ class NotifierBot:
         user_id = update.effective_user.id
         chat_id = update.effective_chat.id
 
-        # Check if user already has this topic
-        existing_topic = db.find_topic_by_name(user_id, topic_name)
-        if existing_topic:
-            await update.message.reply_text(f"❌ Topic '{topic_name}' already exists!")
+        # Validate topic name (no special characters for URL safety)
+        if not topic_name.replace("-", "").replace("_", "").isalnum():
+            await update.message.reply_text("❌ Topic name can only contain letters, numbers, hyphens, and underscores.")
             return
 
-        # Generate new UUID and register topic
-        topic_uuid = str(uuid.uuid4())
-        
-        if db.add_topic(topic_uuid, user_id, topic_name, chat_id):
+        # Register topic (topic name is globally unique)
+        if db.add_topic(topic_name, user_id, chat_id):
             await update.message.reply_text(
                 f"✅ Topic '{topic_name}' registered!\n\n"
-                f"🔗 Webhook URL: `{topic_uuid}`\n\n"
-                f"Others can now POST to: `http://your-server:8080/{topic_uuid}`",
+                f"🔗 Webhook endpoint: `/{topic_name}`\n\n"
+                f"Others can now POST to: `http://your-server:8080/{topic_name}`",
                 parse_mode='Markdown'
             )
         else:
-            await update.message.reply_text("❌ Failed to register topic. Please try again.")
+            await update.message.reply_text(f"❌ Topic '{topic_name}' is already taken. Please choose a different name.")
 
     async def unregister_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /unregister <topic_name> command"""
@@ -244,18 +237,18 @@ class NotifierBot:
 
         topic_list = []
         for topic in user_topics:
-            topic_list.append(f"• {topic['topic_name']}: `{topic['uuid']}`")
+            topic_list.append(f"• `{topic['topic_name']}`")
 
         message = "📋 Your registered topics:\n\n" + "\n".join(topic_list)
         await update.message.reply_text(message, parse_mode='Markdown')
 
 
 async def webhook_handler(request):
-    """Handle HTTP POST requests to /<uuid>"""
-    topic_uuid = request.match_info.get('uuid')
+    """Handle HTTP POST requests to /<topic_name>"""
+    topic_name = request.match_info.get('topic_name')
     
     # Get topic from database
-    topic_info = db.get_topic(topic_uuid)
+    topic_info = db.get_topic(topic_name)
     if not topic_info:
         return web.Response(status=404, text="Topic not found")
 
@@ -271,7 +264,6 @@ async def webhook_handler(request):
             return web.Response(status=400, text="No message provided")
 
         # Get topic info
-        topic_name = topic_info['topic_name']
         chat_id = topic_info['chat_id']
 
         # Send notification via Telegram
@@ -301,7 +293,7 @@ async def webhook_handler(request):
 async def create_webhook_app():
     """Create the HTTP webhook application"""
     app = web.Application()
-    app.router.add_post('/{uuid}', webhook_handler)
+    app.router.add_post('/{topic_name}', webhook_handler)
     
     # Health check endpoint
     async def health_check(request):
