@@ -87,6 +87,38 @@
           ${pkgs.lib.getExe pkgs.curl} "${aggregator}/v1/blobs/$1" -o "$2"
         '';
 
+        # Sends a notification via Telegram
+        packages.do-telegram-notify = pkgs.writeScriptBin "do-telegram-notify" ''
+          set -euo pipefail
+
+          if [ $# -lt 2 ]; then
+            echo "Usage: do-telegram-notify <topic_uuid> <message> [telegram_bot_url]"
+            echo "Sends a notification to a Telegram topic"
+            exit 1
+          fi
+
+          TOPIC_UUID="$1"
+          MESSAGE="$2"
+          BOT_URL="''${3:-http://localhost:8080}"
+
+          if [ -z "$TOPIC_UUID" ]; then
+            echo "Error: Topic UUID cannot be empty"
+            exit 1
+          fi
+
+          if [ -z "$MESSAGE" ]; then
+            echo "Error: Message cannot be empty"
+            exit 1
+          fi
+
+          echo "Sending notification to topic $TOPIC_UUID..."
+          ${pkgs.lib.getExe pkgs.curl} -X POST \
+            -H "Content-Type: application/json" \
+            -d "{\"message\": \"$MESSAGE\"}" \
+            "$BOT_URL/$TOPIC_UUID"
+        '';
+
+
         packages.sui-testnet = pkgs.stdenv.mkDerivation {
           name = "sui-testnet";
           version = "1.51.2";
@@ -139,12 +171,13 @@
             pkgs.git
             pkgs.nixos-generators
 
-            (pkgs.python3.withPackages (ps: with ps; [ scikit-learn polars ]))
+            (pkgs.python3.withPackages (ps: with ps; [ scikit-learn polars aiohttp python-telegram-bot ]))
 
             self.packages.${system}.sui-testnet
             self.packages.${system}.walrus
             self.packages.${system}.do-walrus-put
             self.packages.${system}.do-walrus-get
+            self.packages.${system}.do-telegram-notify
           ];
         };
       }) // {
@@ -161,6 +194,7 @@
                 self.packages.x86_64-linux.sui-testnet
                 self.packages.x86_64-linux.do-walrus-put
                 self.packages.x86_64-linux.do-walrus-get
+                self.packages.x86_64-linux.do-telegram-notify
               ];
             })
 
