@@ -10,10 +10,6 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    # sui-overlay = { url = "github:akiross/sui-overlay"; };
-
-    naersk.url = "github:nix-community/naersk";
-
     sui-ubuntu-bin = {
       url =
         "https://github.com/MystenLabs/sui/releases/download/testnet-v1.51.2/sui-testnet-v1.51.2-ubuntu-x86_64.tgz";
@@ -29,13 +25,10 @@
   };
 
   outputs = { self, nixpkgs, flake-utils, nixos-generators, sui-ubuntu-bin
-    , naersk, walrus-ubuntu-bin }:
+    , walrus-ubuntu-bin }:
     flake-utils.lib.eachDefaultSystem (system:
       let
-        # overlays = [ sui-overlay.overlays.${system}.default ];
-        # pkgs = import nixpkgs { inherit system overlays; };
         pkgs = nixpkgs.legacyPackages.${system};
-        #naersk' = pkgs.callPackage naersk { };
 
         # Walrus endpoints
         aggregator = "https://aggregator.walrus-testnet.walrus.space";
@@ -43,15 +36,55 @@
 
       in {
         # Uploads a file to walrus for 5 epochs
-        packages.do-walrus-put = pkgs.writeShellScriptBin "walrus-put" ''
+        packages.do-walrus-put = pkgs.writeScriptBin "do-walrus-put" ''
+          set -euo pipefail
+
+          if [ $# -ne 1 ]; then
+            echo "Usage: do-walrus-put <file>"
+            echo "Uploads a file to Walrus storage for 5 epochs"
+            exit 1
+          fi
+
+          if [ ! -f "$1" ]; then
+            echo "Error: File '$1' does not exist"
+            exit 1
+          fi
+
+          echo "Uploading file '$1' to Walrus..."
           ${
             pkgs.lib.getExe pkgs.curl
           } -X PUT "${publisher}/v1/blobs?epochs=5" --upload-file "$1"
         '';
 
         # Downloads a blob from walrus
-        packages.do-walrus-get = pkgs.writeShellScriptBin "walrus-get" ''
-          ${pkgs.lib.getExe pkgs.curl} "${aggregator}/v1/blobs/$1" -o $2
+        packages.do-walrus-get = pkgs.writeScriptBin "do-walrus-get" ''
+          set -euo pipefail
+
+          if [ $# -ne 2 ]; then
+            echo "Usage: do-walrus-get <blob_id> <output_file>"
+            echo "Downloads a blob from Walrus storage"
+            exit 1
+          fi
+
+          if [ -z "$1" ]; then
+            echo "Error: Blob ID cannot be empty"
+            exit 1
+          fi
+
+          if [ -z "$2" ]; then
+            echo "Error: Output file path cannot be empty"
+            exit 1
+          fi
+
+          # Check if output directory exists
+          output_dir=$(dirname "$2")
+          if [ ! -d "$output_dir" ]; then
+            echo "Error: Directory '$output_dir' does not exist"
+            exit 1
+          fi
+
+          echo "Downloading blob '$1' to '$2'..."
+          ${pkgs.lib.getExe pkgs.curl} "${aggregator}/v1/blobs/$1" -o "$2"
         '';
 
         packages.sui-testnet = pkgs.stdenv.mkDerivation {
@@ -60,16 +93,7 @@
 
           src = sui-ubuntu-bin;
 
-          LD_LIBRARY_PATH = "${pkgs.stdenv.cc.cc.lib}/lib";
-
-          #  pkgs.fetchzip {
-          #    # stripRoot = false;
-          #    curlOpts = "-L";
-          #    url =
-          #      "https://github.com/MystenLabs/sui/releases/download/testnet-v${version}/sui-testnet-v${version}-ubuntu-x86_64.tgz";
-
-          #    sha256 = "";
-          #  };
+          # LD_LIBRARY_PATH = "${pkgs.stdenv.cc.cc.lib}/lib";
 
           installPhase = ''
             mkdir -p $out/bin
@@ -108,31 +132,7 @@
             ./configuration.nix
           ];
           format = "qcow";
-
-          # optional arguments:
-          # explicit nixpkgs and lib:
-          # pkgs = nixpkgs.legacyPackages.x86_64-linux;
-          # lib = nixpkgs.legacyPackages.x86_64-linux.lib;
-          # additional arguments to pass to modules:
-          # specialArgs = { myExtraArg = "foobar"; };
-
-          # you can also define your own custom formats
-          # customFormats = { "myFormat" = <myFormatModule>; ... };
-          # format = "myFormat";
         };
-
-        # This fails, unsure why
-        # packages.walrus = pkgs.callPackage ./walrus.nix { };
-        # This fails with cargo workspace stuff, unsure why
-        # packages.walrus = naersk'.buildPackage {
-        #   src = pkgs.fetchFromGitHub {
-        #     owner = "MystenLabs";
-        #     repo = "walrus";
-        #     rev = "testnet-v1.26.4";
-        #     hash =
-        #       "sha256-r3JlebRGh6SIYzzuy4Oa9RLe2Z2Q00gcAyv7XkxMLBo="; # sha256-9bM1Dypl/z7vOi76HsaIXIBOQ7D3B+20JbDwKh3aILY=";
-        #   };
-        # };
 
         devShells.default = pkgs.mkShell {
           buildInputs = [
@@ -146,10 +146,6 @@
           ];
         };
       }) // {
-
-        #packages.x86_64-linux.sui-testnet =
-        # nixpkgs.legacyPackages.x86_64-linux.callPackage ./sui-testnet.nix { };
-
         nixosConfigurations.vm-preview = nixpkgs.lib.nixosSystem {
           system = "x86_64-linux";
           modules = [
