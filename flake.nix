@@ -159,8 +159,9 @@
         packages.default = nixos-generators.nixosGenerate {
           system = "x86_64-linux";
           modules = [
-            # you can include your own nixos configuration here, i.e.
             ./configuration.nix
+            self.nixosModules.walrus
+            self.nixosModules.web3-trainer
           ];
           format = "qcow";
         };
@@ -186,111 +187,111 @@
           ];
         };
       }) // {
+        # Add sui and walrus from this flake
+        nixosModules.walrus = ({
+          environment.systemPackages = [
+            self.packages.x86_64-linux.walrus
+            self.packages.x86_64-linux.sui-testnet
+            self.packages.x86_64-linux.do-walrus-put
+            self.packages.x86_64-linux.do-walrus-get
+            self.packages.x86_64-linux.do-notify
+          ];
+        });
+
+        # Module with services to fetch, train and publish
+        nixosModules.web3-trainer = ({ lib, pkgs, ... }: {
+          systemd.services.walrus-puller = {
+            description = "Pulls training data from walrus";
+            serviceConfig = {
+              Type = "oneshot"; # We run it and exit
+              RemainAfterExit = true;
+              Restart = "on-failure";
+              RestartSec = "30s";
+            };
+            script = ''
+              # Exit immediately if something fails
+              set -euo pipefail
+
+              ${
+                lib.getExe self.packages.x86_64-linux.do-walrus-get
+              } l2y--QBVILrMBnnzo0trCMkB0BF7zhKOIHyeBvUooO8 /tmp/iris.csv
+
+              echo "Data is ready to be used"
+              ${
+                lib.getExe self.packages.x86_64-linux.do-notify
+              } training "data pulled"
+            '';
+
+            wants = [ "network-online.target" ];
+            after = [ "network-online.target" ];
+            wantedBy = [ "multi-user.target" ];
+          };
+
+          systemd.services.model-trainer = {
+            description = "Trains ML model on the downloaded data";
+            serviceConfig = {
+              Type = "oneshot";
+              RemainAfterExit = true;
+            };
+            script = ''
+              set -euo pipefail
+
+              echo "Starting model training..."
+              ${
+                pkgs.python3.withPackages (ps: with ps; [ scikit-learn polars ])
+              }/bin/python3 ${
+                ./train_iris_model.py
+              } /tmp/iris.csv --output-dir /tmp
+
+              echo "Model training completed successfully"
+
+              ${
+                lib.getExe self.packages.x86_64-linux.do-notify
+              } training finished
+            '';
+
+            after = [ "walrus-puller.service" ];
+            wants = [ "walrus-puller.service" ];
+            wantedBy = [ "multi-user.target" ];
+          };
+
+          systemd.services.walrus-pusher = {
+            description = "Uploads trained model to walrus";
+            serviceConfig = {
+              Type = "oneshot";
+              RemainAfterExit = true;
+            };
+            script = ''
+              set -euo pipefail
+
+              echo "Uploading trained model to Walrus..."
+
+              # Capture the JSON output from walrus upload
+              upload_result=$(${
+                lib.getExe self.packages.x86_64-linux.do-walrus-put
+              } /tmp/iris_random_forest_model.pkl)
+
+              echo "Model uploaded successfully"
+              echo "Upload result: $upload_result"
+
+              # Use the JSON output as the notification message
+              ${
+                lib.getExe self.packages.x86_64-linux.do-notify
+              } training "$upload_result"
+            '';
+
+            after = [ "model-trainer.service" ];
+            wants = [ "model-trainer.service" ];
+            wantedBy = [ "multi-user.target" ];
+          };
+        });
+
         nixosConfigurations.vm-image = nixpkgs.lib.nixosSystem {
           system = "x86_64-linux";
           modules = [
-            # Base configuration
             ./configuration.nix
-
-            # Add sui and walrus from this flake
-            ({
-              environment.systemPackages = [
-                self.packages.x86_64-linux.walrus
-                self.packages.x86_64-linux.sui-testnet
-                self.packages.x86_64-linux.do-walrus-put
-                self.packages.x86_64-linux.do-walrus-get
-                self.packages.x86_64-linux.do-notify
-              ];
-            })
-
-            # Add a service that fetches data from walrus upon boot
-            ({ lib, pkgs, ... }: {
-              systemd.services.walrus-puller = {
-                description = "Pulls training data from walrus";
-                serviceConfig = {
-                  Type = "oneshot"; # We run it and exit
-                  RemainAfterExit = true;
-                  Restart = "on-failure";
-                  RestartSec = "30s";
-                };
-                script = ''
-                  # Exit immediately if something fails
-                  set -euo pipefail
-
-                  ${
-                    lib.getExe self.packages.x86_64-linux.do-walrus-get
-                  } l2y--QBVILrMBnnzo0trCMkB0BF7zhKOIHyeBvUooO8 /tmp/iris.csv
-
-                  echo "Data is ready to be used"
-                  ${
-                    lib.getExe self.packages.x86_64-linux.do-notify
-                  } training "data pulled"
-                '';
-
-                wants = [ "network-online.target" ];
-                after = [ "network-online.target" ];
-                wantedBy = [ "multi-user.target" ];
-              };
-
-              systemd.services.model-trainer = {
-                description = "Trains ML model on the downloaded data";
-                serviceConfig = {
-                  Type = "oneshot";
-                  RemainAfterExit = true;
-                };
-                script = ''
-                  set -euo pipefail
-
-                  echo "Starting model training..."
-                  ${
-                    pkgs.python3.withPackages
-                    (ps: with ps; [ scikit-learn polars ])
-                  }/bin/python3 ${
-                    ./train_iris_model.py
-                  } /tmp/iris.csv --output-dir /tmp
-
-                  echo "Model training completed successfully"
-
-                  ${
-                    lib.getExe self.packages.x86_64-linux.do-notify
-                  } training finished
-                '';
-
-                after = [ "walrus-puller.service" ];
-                wants = [ "walrus-puller.service" ];
-                wantedBy = [ "multi-user.target" ];
-              };
-
-              systemd.services.walrus-pusher = {
-                description = "Uploads trained model to walrus";
-                serviceConfig = {
-                  Type = "oneshot";
-                  RemainAfterExit = true;
-                };
-                script = ''
-                  set -euo pipefail
-
-                  echo "Uploading trained model to Walrus..."
-
-                  # Capture the JSON output from walrus upload
-                  upload_result=$(${
-                    lib.getExe self.packages.x86_64-linux.do-walrus-put
-                  } /tmp/iris_random_forest_model.pkl)
-
-                  echo "Model uploaded successfully"
-                  echo "Upload result: $upload_result"
-
-                  # Use the JSON output as the notification message
-                  ${
-                    lib.getExe self.packages.x86_64-linux.do-notify
-                  } training "$upload_result"
-                '';
-
-                after = [ "model-trainer.service" ];
-                wants = [ "model-trainer.service" ];
-                wantedBy = [ "multi-user.target" ];
-              };
-            })
+            self.nixosModules.walrus
+            self.nixosModules.web3-trainer
           ];
         };
 
