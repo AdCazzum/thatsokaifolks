@@ -1,10 +1,13 @@
-nauvis.ale.re:8080 {
-	handle /images* {
-		root * ./result
-		file_server
+https://ethglobal.ale.re:8080 {
+    log
+
+	handle_path /images* {
+		file_server {
+		    root ./result
+        }
 	}
 
-	handle /api* {
+	handle_path /api* {
 		reverse_proxy localhost:8888
 	}
 

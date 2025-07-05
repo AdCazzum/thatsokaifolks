@@ -88,18 +88,18 @@
         '';
 
         # Sends a notification via Telegram
-        packages.do-telegram-notify = pkgs.writeScriptBin "do-telegram-notify" ''
+        packages.do-notify = pkgs.writeScriptBin "do-notify" ''
           set -euo pipefail
 
           if [ $# -lt 2 ]; then
-            echo "Usage: do-telegram-notify <topic_uuid> <message> [telegram_bot_url]"
-            echo "Sends a notification to a Telegram topic"
+            echo "Usage: do-notify <topic_uuid> <message> [endpoint]"
+            echo "Sends a notification via bot"
             exit 1
           fi
 
           TOPIC_UUID="$1"
           MESSAGE="$2"
-          BOT_URL="''${3:-http://localhost:8080}"
+          BOT_URL="''${3:-https://ethglobal.ale.re:8080/api}"
 
           if [ -z "$TOPIC_UUID" ]; then
             echo "Error: Topic UUID cannot be empty"
@@ -117,7 +117,6 @@
             -d "{\"message\": \"$MESSAGE\"}" \
             "$BOT_URL/$TOPIC_UUID"
         '';
-
 
         packages.sui-testnet = pkgs.stdenv.mkDerivation {
           name = "sui-testnet";
@@ -171,13 +170,19 @@
             pkgs.git
             pkgs.nixos-generators
 
-            (pkgs.python3.withPackages (ps: with ps; [ scikit-learn polars aiohttp python-telegram-bot ]))
+            (pkgs.python3.withPackages (ps:
+              with ps; [
+                scikit-learn
+                polars
+                aiohttp
+                python-telegram-bot
+              ]))
 
             self.packages.${system}.sui-testnet
             self.packages.${system}.walrus
             self.packages.${system}.do-walrus-put
             self.packages.${system}.do-walrus-get
-            self.packages.${system}.do-telegram-notify
+            self.packages.${system}.do-notify
           ];
         };
       }) // {
@@ -194,7 +199,7 @@
                 self.packages.x86_64-linux.sui-testnet
                 self.packages.x86_64-linux.do-walrus-put
                 self.packages.x86_64-linux.do-walrus-get
-                self.packages.x86_64-linux.do-telegram-notify
+                self.packages.x86_64-linux.do-notify
               ];
             })
 
@@ -217,6 +222,9 @@
                   } l2y--QBVILrMBnnzo0trCMkB0BF7zhKOIHyeBvUooO8 /tmp/iris.csv
 
                   echo "Data is ready to be used"
+                  ${
+                    lib.getExe self.packages.x86_64-linux.do-notify
+                  } training "data pulled"
                 '';
 
                 wants = [ "network-online.target" ];
@@ -242,6 +250,10 @@
                   } /tmp/iris.csv --output-dir /tmp
 
                   echo "Model training completed successfully"
+
+                  ${
+                    lib.getExe self.packages.x86_64-linux.do-notify
+                  } training finished
                 '';
 
                 after = [ "walrus-puller.service" ];
@@ -264,6 +276,9 @@
                   } /tmp/iris_random_forest_model.pkl
 
                   echo "Model uploaded successfully"
+                  ${
+                    lib.getExe self.packages.x86_64-linux.do-notify
+                  } training "model pushed"
                 '';
 
                 after = [ "model-trainer.service" ];
