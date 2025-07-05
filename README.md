@@ -45,7 +45,7 @@ You need to build and serve the image, assuming this is from a public VPS:
 
 ```bash
 # Build the image
-build
+nix build
 
 # ./result contains the nixos.qcow2 file, serve it
 caddy file-server -a -r ./result -l :8080
