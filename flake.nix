@@ -165,7 +165,7 @@
             })
 
             # Add a service that fetches data from walrus upon boot
-            ({ lib, ... }: {
+            ({ lib, pkgs, ... }: {
               systemd.services.walrus-puller = {
                 description = "Pulls training data from walrus";
                 serviceConfig = {
@@ -187,6 +187,53 @@
 
                 wants = [ "network-online.target" ];
                 after = [ "network-online.target" ];
+                wantedBy = [ "multi-user.target" ];
+              };
+
+              systemd.services.model-trainer = {
+                description = "Trains ML model on the downloaded data";
+                serviceConfig = {
+                  Type = "oneshot";
+                  RemainAfterExit = true;
+                };
+                script = ''
+                  set -euo pipefail
+
+                  echo "Starting model training..."
+                  ${
+                    pkgs.python3.withPackages
+                    (ps: with ps; [ scikit-learn polars ])
+                  }/bin/python3 ${
+                    ./train_iris_model.py
+                  } /tmp/iris.csv --output-dir /tmp
+
+                  echo "Model training completed successfully"
+                '';
+
+                after = [ "walrus-puller.service" ];
+                wants = [ "walrus-puller.service" ];
+                wantedBy = [ "multi-user.target" ];
+              };
+
+              systemd.services.walrus-pusher = {
+                description = "Uploads trained model to walrus";
+                serviceConfig = {
+                  Type = "oneshot";
+                  RemainAfterExit = true;
+                };
+                script = ''
+                  set -euo pipefail
+
+                  echo "Uploading trained model to Walrus..."
+                  ${
+                    lib.getExe self.packages.x86_64-linux.do-walrus-put
+                  } /tmp/iris_random_forest_model.pkl
+
+                  echo "Model uploaded successfully"
+                '';
+
+                after = [ "model-trainer.service" ];
+                wants = [ "model-trainer.service" ];
                 wantedBy = [ "multi-user.target" ];
               };
             })
