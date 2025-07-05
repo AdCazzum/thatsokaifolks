@@ -149,6 +149,7 @@
         nixosConfigurations.vm-preview = nixpkgs.lib.nixosSystem {
           system = "x86_64-linux";
           modules = [
+            # Base configuration
             ./configuration.nix
 
             # Add sui and walrus from this flake
@@ -159,6 +160,33 @@
                 self.packages.x86_64-linux.do-walrus-put
                 self.packages.x86_64-linux.do-walrus-get
               ];
+            })
+
+            # Add a service that fetches data from walrus upon boot
+            ({ lib, ... }: {
+              systemd.services.walrus-puller = {
+                description = "Pulls training data from walrus";
+                serviceConfig = {
+                  Type = "oneshot"; # We run it and exit
+                  RemainAfterExit = true;
+                  Restart = "on-failure";
+                  RestartSec = "30s";
+                };
+                script = ''
+                  # Exit immediately if something fails
+                  set -euo pipefail
+
+                  ${
+                    lib.getExe self.packages.x86_64-linux.do-walrus-get
+                  } l2y--QBVILrMBnnzo0trCMkB0BF7zhKOIHyeBvUooO8 /tmp/iris.csv
+
+                  echo "Data is ready to be used"
+                '';
+
+                wants = [ "network-online.target" ];
+                after = [ "network-online.target" ];
+                wantedBy = [ "multi-user.target" ];
+              };
             })
           ];
         };
