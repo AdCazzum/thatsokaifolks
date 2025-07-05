@@ -1,0 +1,18 @@
+nauvis.ale.re:8080 {
+	handle /images* {
+		root * ./result
+		file_server
+	}
+
+	handle /api* {
+		reverse_proxy localhost:8888
+	}
+
+	handle /health {
+		respond "OK" 200
+	}
+
+	handle {
+		respond "Not Found" 404
+	}
+}
