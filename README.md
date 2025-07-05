@@ -1,4 +1,6 @@
-# That's OK-AI
+![That's okAI Folks logo](./art/banner.png)
+
+# That's OK-AI Folks
 
 This is the repository for a blockchain-based host configuration to perform
 model training automatically.
