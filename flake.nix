@@ -135,7 +135,18 @@
 
         nixosConfigurations.vm-preview = nixpkgs.lib.nixosSystem {
           system = "x86_64-linux";
-          modules = [ ./configuration.nix ];
+          modules = [
+            ./configuration.nix
+
+            # Add sui and walrus from this flake
+            ({
+              environment.systemPackages = [
+                self.packages.x86_64-linux.walrus
+                self.packages.x86_64-linux.sui-testnet
+              ];
+
+            })
+          ];
         };
 
         apps.x86_64-linux = {

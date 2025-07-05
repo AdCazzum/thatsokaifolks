@@ -7,6 +7,9 @@
 
   networking.firewall.enable = false;
 
+  # To run ubuntu packages (sui, walrus)
+  programs.nix-ld.enable = true;
+
   services.sshd.enable = true;
   services.openssh.settings.PermitRootLogin = "yes";
 
