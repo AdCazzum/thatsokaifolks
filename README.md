@@ -44,11 +44,14 @@ connection between input and output. Possibly a web3 application that does so.
 You need to build and serve the image, assuming this is from a public VPS:
 
 ```bash
+# The notification bot has been started
+WEBHOOK_PORT=8888 TELEGRAM_BOT_TOKEN=... python3 telegram_notifier_bot.py
+
 # Build the image
 nix build
 
-# ./result contains the nixos.qcow2 file, serve it
-caddy file-server -a -r ./result -l :8080
+# ./result contains the nixos.qcow2 file, serve it and route notifications
+caddy run --config Caddyfile
 ```
 
 Then use fluence API or control panel to start a VM using the custom image.

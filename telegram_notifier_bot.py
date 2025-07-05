@@ -270,7 +270,19 @@ async def webhook_handler(request):
         bot_token = os.getenv('TELEGRAM_BOT_TOKEN')
         telegram_url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
         
-        notification_text = f"🔔 **{topic_name}**\n\n{message}"
+        # Check if message looks like JSON and format it appropriately
+        formatted_message = message
+        try:
+            # Try to parse as JSON to validate and pretty-print
+            import json
+            parsed_json = json.loads(message)
+            # Format as code block for better readability
+            formatted_message = f"```json\n{json.dumps(parsed_json, indent=2)}\n```"
+        except (json.JSONDecodeError, TypeError):
+            # Not JSON or invalid JSON, escape potential markdown characters
+            formatted_message = message.replace('_', '\\_').replace('*', '\\*').replace('[', '\\[').replace(']', '\\]').replace('`', '\\`')
+        
+        notification_text = f"🔔 **{topic_name}**\n\n{formatted_message}"
         
         async with aiohttp.ClientSession() as session:
             payload = {
