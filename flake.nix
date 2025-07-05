@@ -35,8 +35,24 @@
         # overlays = [ sui-overlay.overlays.${system}.default ];
         # pkgs = import nixpkgs { inherit system overlays; };
         pkgs = nixpkgs.legacyPackages.${system};
-        naersk' = pkgs.callPackage naersk { };
+        #naersk' = pkgs.callPackage naersk { };
+
+        # Walrus endpoints
+        aggregator = "https://aggregator.walrus-testnet.walrus.space";
+        publisher = "https://publisher.walrus-testnet.walrus.space";
+
       in {
+        # Uploads a file to walrus for 5 epochs
+        packages.do-walrus-put = pkgs.writeShellScriptBin "walrus-put" ''
+          ${
+            pkgs.lib.getExe pkgs.curl
+          } -X PUT "${publisher}/v1/blobs?epochs=5" --upload-file "$1"
+        '';
+
+        # Downloads a blob from walrus
+        packages.do-walrus-get = pkgs.writeShellScriptBin "walrus-get" ''
+          ${pkgs.lib.getExe pkgs.curl} "${aggregator}/v1/blobs/$1" -o $2
+        '';
 
         packages.sui-testnet = pkgs.stdenv.mkDerivation {
           name = "sui-testnet";
@@ -119,14 +135,14 @@
         # };
 
         devShells.default = pkgs.mkShell {
-          buildInputs = with pkgs; [
-            nix
-            git
+          buildInputs = [
+            pkgs.git
             pkgs.nixos-generators
-            # to install sui
-            pkgs.cargo
 
             self.packages.${system}.sui-testnet
+            self.packages.${system}.walrus
+            self.packages.${system}.do-walrus-put
+            self.packages.${system}.do-walrus-get
           ];
         };
       }) // {
@@ -144,8 +160,9 @@
               environment.systemPackages = [
                 self.packages.x86_64-linux.walrus
                 self.packages.x86_64-linux.sui-testnet
+                self.packages.x86_64-linux.do-walrus-put
+                self.packages.x86_64-linux.do-walrus-get
               ];
-
             })
           ];
         };
