@@ -163,7 +163,8 @@
             self.nixosModules.walrus
             self.nixosModules.web3-trainer
           ];
-          format = "qcow";
+          # format = "qcow";
+          format = "kubevirt";
         };
 
         devShells.default = pkgs.mkShell {
