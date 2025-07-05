@@ -5,18 +5,25 @@
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
 
+    # To encrypt secrets
+    agenix = {
+      url = "github:ryantm/agenix";
+      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.darwin.follows = "";
+    };
+
+    # To build the VM image
     nixos-generators = {
       url = "github:nix-community/nixos-generators";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    # This can be moved into a fetchzip
+    # To use walrus
     sui-ubuntu-bin = {
       url =
         "https://github.com/MystenLabs/sui/releases/download/testnet-v1.51.2/sui-testnet-v1.51.2-ubuntu-x86_64.tgz";
       flake = false;
     };
-
     walrus-ubuntu-bin = {
       url =
         "https://github.com/MystenLabs/walrus/releases/download/testnet-v1.28.1/walrus-testnet-v1.28.1-ubuntu-x86_64.tgz";
@@ -26,7 +33,7 @@
   };
 
   outputs = { self, nixpkgs, flake-utils, nixos-generators, sui-ubuntu-bin
-    , walrus-ubuntu-bin }:
+    , walrus-ubuntu-bin, agenix }:
     flake-utils.lib.eachDefaultSystem (system:
       let
         # Walrus endpoints, using testnet at the moment
@@ -159,7 +166,8 @@
         packages.default = nixos-generators.nixosGenerate {
           system = "x86_64-linux";
           modules = [
-            ./configuration.nix
+            ./nix/configuration.nix
+            agenix.nixosModules.default
             self.nixosModules.walrus
             self.nixosModules.web3-trainer
           ];
@@ -204,25 +212,31 @@
         nixosModules.web3-trainer = ({ lib, pkgs, ... }: {
 
           systemd.services.walrus-puller =
-            import ./walrus-puller.nix { inherit self lib pkgs; };
+            import ./nix/walrus-puller.nix { inherit self pkgs lib; };
 
           systemd.services.model-trainer =
-            import ./model-trainer.nix { inherit self lib; };
+            import ./nix/model-trainer.nix { inherit self pkgs lib; };
 
           systemd.services.walrus-pusher =
-            import ./walrus-pusher.nix { inherit self lib pkgs; };
+            import ./nix/walrus-pusher.nix { inherit self pkgs lib; };
         });
 
         nixosConfigurations.vm-image = nixpkgs.lib.nixosSystem {
           system = "x86_64-linux";
           modules = [
-            ./configuration.nix
+            ./nix/configuration.nix
+            agenix.nixosModules.default
             self.nixosModules.walrus
             self.nixosModules.web3-trainer
           ];
         };
 
         apps.x86_64-linux = {
+          agenix = {
+            type = "app";
+            program =
+              "${agenix.outputs.packages.x86_64-linux.agenix}/bin/agenix";
+          };
           vm-preview = {
             type = "app";
             program =

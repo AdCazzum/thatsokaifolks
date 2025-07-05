@@ -49,6 +49,7 @@ with nix or nixos on it (with port 8080 open to the world).
 
 1. enter your nix host (e.g. `foo.example.com`) and clone this repository;
 2. customize the files according to your needs:
+   - `flake.nix`: contains the endpoints (see `aggregator` and `publisher`);
    - `configuration.nix`: with your users, ssh keys, programs, settings and so on;
    - `walrus-puller.nix`: to pull your training data
    - `model-trainer.nix`: to train your model
@@ -62,7 +63,7 @@ with nix or nixos on it (with port 8080 open to the world).
    insert your ssh keys from the control panel when using a custom image, so
    you will need to set them in your `configuration.nix` or set a password.
 
-In this repo, there are some more things that are useful for the demo:
+In this repo, there are some more things that are useful for testing and demoing:
 
 1. a Telegram bot script that can be used to collect notifications via HTTP POST;
    to run it, register a bot using Botfather, get a key and run it using
@@ -79,3 +80,17 @@ In this repo, there are some more things that are useful for the demo:
    # ./result contains the nixos.qcow2 file, serve it and route notifications
    caddy run --config Caddyfile
    ```
+3. a demo setup of agenix if you need to encrypt secrets (e.g. root password in
+   this case, but it's a safety hazard so use ssh keys in production); for
+   example, to edit the root password file:
+   ```
+   cd secrets
+   nix run .#agenix -- -i ~/.ssh/agenix -e rootpass.age
+   ```
+4. run `nix run .#vm-preview` to build the VM and run it in qemu to test it.
+
+Inside the VM image, a few utility commands are available:
+
+- `do-walrus-put` to put data onto walrus network
+- `do-walrus-get` to get data from walrus network
+- `walrus` and `sui` binary packages adapted for nix
