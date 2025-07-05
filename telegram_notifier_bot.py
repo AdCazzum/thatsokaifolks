@@ -247,18 +247,35 @@ async def webhook_handler(request):
     """Handle HTTP POST requests to /<topic_name>"""
     topic_name = request.match_info.get('topic_name')
     
+    logger.info(f"Webhook request received for topic: {topic_name}")
+    logger.info(f"Content-Type: {request.content_type}")
+    
     # Get topic from database
     topic_info = db.get_topic(topic_name)
     if not topic_info:
         return web.Response(status=404, text="Topic not found")
 
     try:
+        # Get raw body first for debugging
+        raw_body = await request.read()
+        logger.info(f"Raw request body: {repr(raw_body)}")
+        logger.info(f"Raw body length: {len(raw_body)}")
+        
         # Get message from request body
         if request.content_type == 'application/json':
-            data = await request.json()
-            message = data.get('message', str(data))
+            try:
+                # Parse the raw body manually to catch JSON errors
+                import json
+                data = json.loads(raw_body.decode('utf-8'))
+                message = data.get('message', str(data))
+                logger.info(f"Parsed JSON data: {repr(data)}")
+            except json.JSONDecodeError as e:
+                logger.error(f"Failed to parse JSON from request: {e}")
+                logger.info(f"Raw body that failed: {repr(raw_body)}")
+                return web.Response(status=400, text="Invalid JSON in request")
         else:
-            message = await request.text()
+            message = raw_body.decode('utf-8')
+            logger.info(f"Decoded text message: {repr(message)}")
 
         if not message:
             return web.Response(status=400, text="No message provided")
