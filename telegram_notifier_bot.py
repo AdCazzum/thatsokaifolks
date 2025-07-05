@@ -264,17 +264,22 @@ async def webhook_handler(request):
         # Get message from request body
         if request.content_type == 'application/json':
             try:
-                # Parse the raw body manually to catch JSON errors
+                # First try to clean control characters from the raw body
                 import json
-                data = json.loads(raw_body.decode('utf-8'))
+                clean_raw_body = ''.join(chr(b) if 32 <= b <= 126 or b in [9, 10, 13] else ' ' for b in raw_body)
+                logger.info(f"Cleaned raw body: {repr(clean_raw_body)}")
+                
+                data = json.loads(clean_raw_body)
                 message = data.get('message', str(data))
                 logger.info(f"Parsed JSON data: {repr(data)}")
             except json.JSONDecodeError as e:
-                logger.error(f"Failed to parse JSON from request: {e}")
+                logger.error(f"Failed to parse JSON from request even after cleaning: {e}")
                 logger.info(f"Raw body that failed: {repr(raw_body)}")
-                return web.Response(status=400, text="Invalid JSON in request")
+                # Fallback: treat the entire body as text message
+                message = raw_body.decode('utf-8', errors='replace')
+                logger.info(f"Fallback: treating as text message: {repr(message)}")
         else:
-            message = raw_body.decode('utf-8')
+            message = raw_body.decode('utf-8', errors='replace')
             logger.info(f"Decoded text message: {repr(message)}")
 
         if not message:
