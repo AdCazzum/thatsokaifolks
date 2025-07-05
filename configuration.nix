@@ -1,6 +1,10 @@
 { config, pkgs, ... }: {
 
-  environment.systemPackages = [ pkgs.ncdu ];
+  environment.systemPackages = [
+    # Add here packages you want on your image
+    pkgs.ncdu
+    pkgs.git
+  ];
 
   # Root has passwordless login
   users.users.root.initialPassword = "cicer1";

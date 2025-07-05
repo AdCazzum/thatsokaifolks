@@ -1,18 +1,21 @@
 # That's OK-AI
 
-This is the repository for a blockchain-based software that uses:
+This is the repository for a blockchain-based host configuration to perform
+model training automatically.
+
+This uses:
 
 1. https://www.fluence.network/ decentralized compute-as-a-service
-2. https://www.walrus.xyz/ for storage
+2. https://www.walrus.xyz/ for storage (input data and model output)
 3. https://flare.network/ to provide traceability of inputs and outputs
 
-The purpose of this software is to provide a ready-to-use virtual compute image
+The purpose of this software is to provide a easy-to-make virtual compute image
 that can be use to perform distributed training of machine learning models, with
 blockchain backed verification of source data and produced models.
 
-The repository is a Work-in-Progress and it's not ready to be used, yet.
-We are going to build the application using AI agents to aid the development.
-The process will be done in steps.
+## Development
+
+The development is done in steps.
 
 The first step is to produce a .raw or .qcow2 which contains the base image for
 the distributed training. The images will be created using NixOS, so it will be
@@ -38,20 +41,41 @@ used to train the model.
 The output will be a system (I don't know in what form, yet) that verifies this
 connection between input and output. Possibly a web3 application that does so.
 
-
 ## Usage
 
-You need to build and serve the image, assuming this is from a public VPS:
+This repo is self-container to get an up-and-running image, but it's using
+test networks. To use this, you need a fluence account and a public-facing host
+with nix or nixos on it (with port 8080 open to the world).
 
-```bash
-# The notification bot has been started
-WEBHOOK_PORT=8888 TELEGRAM_BOT_TOKEN=... python3 telegram_notifier_bot.py
+1. enter your nix host (e.g. `foo.example.com`) and clone this repository;
+2. customize the files according to your needs:
+   - `configuration.nix`: with your users, ssh keys, programs, settings and so on;
+   - `walrus-puller.nix`: to pull your training data
+   - `model-trainer.nix`: to train your model
+   - `walrus-pusher.nix`: to push your output model
+3. build the image using `nix build`, this produces a `./result` directory with
+   your image file (e.g. `nixos-image-kubevirt-25.11.20250630.3016b4b-x86_64-linux.qcow2`)
+4. start a web server to serve the image
+5. from fluence console, remember to specify the url of your image, say
+   `https://foo.example.com/images/nixos-image-kubevirt-25.11.20250630.3016b4b-x86_64-linux.qcow2`
+   before starting the machine. At the time of writing, fluence **does not**
+   insert your ssh keys from the control panel when using a custom image, so
+   you will need to set them in your `configuration.nix` or set a password.
 
-# Build the image
-nix build
+In this repo, there are some more things that are useful for the demo:
 
-# ./result contains the nixos.qcow2 file, serve it and route notifications
-caddy run --config Caddyfile
-```
+1. a Telegram bot script that can be used to collect notifications via HTTP POST;
+   to run it, register a bot using Botfather, get a key and run it using
+   something like:
+   ```bash
+   WEBHOOK_PORT=8888 TELEGRAM_BOT_TOKEN=... python3 telegram_notifier_bot.py
+   ```
+2. a `Caddyfile` that is used to work as reverse-proxy for the telegram bot and
+   to serve the files in `./result`:
+   ```bash
+   # Build the image
+   nix build
 
-Then use fluence API or control panel to start a VM using the custom image.
+   # ./result contains the nixos.qcow2 file, serve it and route notifications
+   caddy run --config Caddyfile
+   ```
