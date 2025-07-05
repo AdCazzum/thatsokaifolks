@@ -14,29 +14,35 @@
 
     naersk.url = "github:nix-community/naersk";
 
-    sticazzi = {
+    sui-ubuntu-bin = {
       url =
         "https://github.com/MystenLabs/sui/releases/download/testnet-v1.51.2/sui-testnet-v1.51.2-ubuntu-x86_64.tgz";
       flake = false;
     };
 
+    walrus-ubuntu-bin = {
+      url =
+        "https://github.com/MystenLabs/walrus/releases/download/testnet-v1.28.1/walrus-testnet-v1.28.1-ubuntu-x86_64.tgz";
+      flake = false;
+    };
+
   };
 
-  outputs = { self, nixpkgs, flake-utils, nixos-generators, sticazzi, naersk }:
+  outputs = { self, nixpkgs, flake-utils, nixos-generators, sui-ubuntu-bin
+    , naersk, walrus-ubuntu-bin }:
     flake-utils.lib.eachDefaultSystem (system:
       let
         # overlays = [ sui-overlay.overlays.${system}.default ];
         # pkgs = import nixpkgs { inherit system overlays; };
         pkgs = nixpkgs.legacyPackages.${system};
-        version = "1.51.2";
         naersk' = pkgs.callPackage naersk { };
       in {
 
         packages.sui-testnet = pkgs.stdenv.mkDerivation {
           name = "sui-testnet";
-          inherit version;
+          version = "1.51.2";
 
-          src = sticazzi;
+          src = sui-ubuntu-bin;
 
           LD_LIBRARY_PATH = "${pkgs.stdenv.cc.cc.lib}/lib";
 
@@ -60,15 +66,36 @@
           '';
         };
 
-        # packages.walrus = pkgs.callPackage ./walrus.nix { };
-        packages.walrus = naersk'.buildPackage {
-          src = pkgs.fetchFromGitHub {
-            owner = "MystenLabs";
-            repo = "walrus";
-            rev = "testnet-v${version}";
-            hash = "sha256-9bM1Dypl/z7vOi76HsaIXIBOQ7D3B+20JbDwKh3aILY=";
-          };
+        packages.walrus = pkgs.stdenv.mkDerivation {
+          name = "walrus";
+          version = "1.28.1";
+
+          src = walrus-ubuntu-bin;
+
+          installPhase = ''
+            mkdir -p $out/bin
+            ls *
+            for b in *; do
+              if [ -f "$b" ] && [ -x "$b" ]; then
+                cp "$b" $out/bin/
+                chmod +x $out/bin/"$b"
+              fi
+            done
+          '';
         };
+
+        # This fails, unsure why
+        # packages.walrus = pkgs.callPackage ./walrus.nix { };
+        # This fails with cargo workspace stuff, unsure why
+        # packages.walrus = naersk'.buildPackage {
+        #   src = pkgs.fetchFromGitHub {
+        #     owner = "MystenLabs";
+        #     repo = "walrus";
+        #     rev = "testnet-v1.26.4";
+        #     hash =
+        #       "sha256-r3JlebRGh6SIYzzuy4Oa9RLe2Z2Q00gcAyv7XkxMLBo="; # sha256-9bM1Dypl/z7vOi76HsaIXIBOQ7D3B+20JbDwKh3aILY=";
+        #   };
+        # };
 
         devShells.default = pkgs.mkShell {
           buildInputs = with pkgs; [

@@ -110,10 +110,11 @@
         "naersk": "naersk",
         "nixos-generators": "nixos-generators",
         "nixpkgs": "nixpkgs_2",
-        "sticazzi": "sticazzi"
+        "sui-ubuntu-bin": "sui-ubuntu-bin",
+        "walrus-ubuntu-bin": "walrus-ubuntu-bin"
       }
     },
-    "sticazzi": {
+    "sui-ubuntu-bin": {
       "flake": false,
       "locked": {
         "lastModified": 1751215879,
@@ -139,6 +140,19 @@
         "owner": "nix-systems",
         "repo": "default",
         "type": "github"
+      }
+    },
+    "walrus-ubuntu-bin": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1751498666,
+        "narHash": "sha256-Bf7CZKBTdB2DL+2tr1lTd1maTFRbjuEo1s4lhTQW+jg=",
+        "type": "tarball",
+        "url": "https://github.com/MystenLabs/walrus/releases/download/testnet-v1.28.1/walrus-testnet-v1.28.1-ubuntu-x86_64.tgz"
+      },
+      "original": {
+        "type": "tarball",
+        "url": "https://github.com/MystenLabs/walrus/releases/download/testnet-v1.28.1/walrus-testnet-v1.28.1-ubuntu-x86_64.tgz"
       }
     }
   },
