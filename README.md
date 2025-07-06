@@ -9,41 +9,15 @@ This uses:
 
 1. https://www.fluence.network/ decentralized compute-as-a-service
 2. https://www.walrus.xyz/ for storage (input data and model output)
-3. https://flare.network/ to provide traceability of inputs and outputs
 
 The purpose of this software is to provide a easy-to-make virtual compute image
 that can be use to perform distributed training of machine learning models, with
 blockchain backed verification of source data and produced models.
 
-## Development
-
-The development is done in steps.
-
-The first step is to produce a .raw or .qcow2 which contains the base image for
-the distributed training. The images will be created using NixOS, so it will be
-easy to reproduce, modify and generate the image files.
-[NixOS generators](https://github.com/nix-community/nixos-generators) might
-provide a way to easily turn system configurations into usable images.
-The first step is therefore to have an environment to produce such images. The
-content of the image is irrelevant and a basic funcioning image is sufficient.
-
-In the second step, we'll integrate some distributed-training tooling, framework
-or, in general, resources that can be used to perform distributed training.
-Here, it's useful to have an example application of distributed training to
-provide a demo.
-
-In the third step, we'll use walrus to source the data: somewhere in the walrus
-network there will be input data ready to be used, therefore we'll have to
-prepare the image so that it will access the data and use it for training.
-The output of this step is to have a model trained on data coming from walrus.
-
-Finally, in the fourth step, we'll use flare smart contract for data provenance,
-so that for each model we'll be sure about what image and what data have been
-used to train the model.
-The output will be a system (I don't know in what form, yet) that verifies this
-connection between input and output. Possibly a web3 application that does so.
 
 ## Usage
+
+![A diagram of the usage flow](./docs/flow.png)
 
 This repo is self-container to get an up-and-running image, but it's using
 test networks. To use this, you need a fluence account and a public-facing host
@@ -96,3 +70,18 @@ Inside the VM image, a few utility commands are available:
 - `do-walrus-put` to put data onto walrus network
 - `do-walrus-get` to get data from walrus network
 - `walrus` and `sui` binary packages adapted for nix
+
+
+## Running on fluence
+
+0. clone the repository, configure the image and build it as explained above;
+   - ensure you configure an account access or ssh keys if you need to access remotely;
+   - this demo will perform training automatically and no access is needed;
+1. make sure you can serve the generated qcow2 image from a public, reachable location
+   - for example `https://foo.example.com:8080/images/nixos-image-kubevirt-25.11.20250630.3016b4b-x86_64-linux.qcow2`
+2. go on the [fluence console](https://console.fluence.network/) and get some credits
+3. configure your hardware requirements
+   ![configure location, vCPUs, memory, storage](./art/fluence-console-1.png)
+4. use a Custom image, insert the URL of the image to load
+   - in this example `https://foo.example.com:8080/images/nixos-image-kubevirt-25.11.20250630.3016b4b-x86_64-linux.qcow2`
+   ![configure custom image](./art/fluence-console-2.png)
