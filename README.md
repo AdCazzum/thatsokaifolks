@@ -85,3 +85,4 @@ Inside the VM image, a few utility commands are available:
 4. use a Custom image, insert the URL of the image to load
    - in this example `https://foo.example.com:8080/images/nixos-image-kubevirt-25.11.20250630.3016b4b-x86_64-linux.qcow2`
    ![configure custom image](./art/fluence-console-2.png)
+5. Press the `Launch` button and wait your training to complete :)
